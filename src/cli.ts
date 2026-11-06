@@ -5,9 +5,7 @@ export async function main(argv: string[]): Promise<number> {
       await import("./mcp/main.ts" as string);
       return 0;
     case "lead-bridge": {
-      const { runLeadBridge } = (await import("./lead-bridge.ts" as string)) as {
-        runLeadBridge(args: string[]): Promise<number>;
-      };
+      const { runLeadBridge } = await import("./lead-bridge.ts");
       return await runLeadBridge(args);
     }
     case "doctor":
