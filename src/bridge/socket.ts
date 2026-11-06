@@ -12,7 +12,7 @@ type Options = {
   onNote: (session: string, text: string) => void;
   log: (line: string) => void;
 };
-type Token = { session?: string };
+type Token = { session?: string; closing?: boolean };
 type Connection = {
   socket: Socket;
   token?: Token;
@@ -51,6 +51,22 @@ export class BridgeSocketServer {
     if (!session) throw new Error("session is required");
     if (binding.session !== undefined && binding.session !== session) throw new Error("token is already bound");
     binding.session = session;
+    binding.closing = false;
+  }
+
+  releaseToken(token: string): void {
+    const binding = this.tokens.get(token);
+    if (!binding) return;
+    this.tokens.delete(token);
+    for (const connection of this.connections) {
+      if (connection.token === binding) this.disconnect(connection);
+    }
+  }
+
+  setSessionClosing(session: string, closing: boolean): void {
+    for (const binding of this.tokens.values()) {
+      if (binding.session === session) binding.closing = closing;
+    }
   }
 
   releaseSession(session: string): void {
@@ -168,6 +184,12 @@ export class BridgeSocketServer {
     const session = connection.token?.session;
     if (session === undefined) {
       this.reply(connection, { id: frame.id, error: "token is not bound" });
+      return;
+    }
+    if (connection.token?.closing) {
+      this.reply(connection, frame.tool === "notify_lead"
+        ? { id: frame.id, error: "session is closing" }
+        : { id: frame.id, result: { status: "cancelled" } });
       return;
     }
     const controller = new AbortController();

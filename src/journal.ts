@@ -2,6 +2,7 @@ import { appendFile, mkdir } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
 export type JournalRecord =
+  | { t: "resumed"; version: 1; at: number }
   | { t: "submitted"; runId: string; task: string; at: number }
   | { t: "update"; runId?: string; update: unknown; at: number }
   | { t: "permission"; runId?: string; requestId: string; toolCallId: string; auto?: boolean; at: number }
@@ -30,6 +31,7 @@ function isRecord(value: unknown): value is JournalRecord {
   const str = (key: string) => typeof value[key] === "string";
   const optionalString = (key: string) => value[key] === undefined || str(key);
   switch (value.t) {
+    case "resumed": return value.version === 1;
     case "submitted": return str("runId") && str("task");
     case "update": return optionalString("runId") && Object.hasOwn(value, "update");
     case "permission": return optionalString("runId") && str("requestId") && str("toolCallId")
