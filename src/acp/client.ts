@@ -355,6 +355,15 @@ export class DshAcpClient {
     return cancellation;
   }
 
+  async recordNote(session: string, text: string): Promise<void> {
+    this.assertOpen();
+    const state = this.registry.get(session);
+    if (!state?.live || state.closing || state.run?.cancelling || state.run?.settling) throw new UnknownRequest(`Unknown or closing session ${session}`);
+    // Queue now, before another ACP callback can settle or replace this run.
+    const appended = this.append(state, { t: "note", runId: state.run?.id, text, at: this.now() });
+    return this.operate(() => appended);
+  }
+
   async follow(a: { session: string; runId: string; after: number; waitSeconds?: number }) {
     const end = Date.now() + Math.max(0, Math.min(300, a.waitSeconds ?? 90)) * 1000;
     while (true) {

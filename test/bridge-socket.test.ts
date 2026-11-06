@@ -52,7 +52,7 @@ afterEach(async () => {
   for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true });
 });
 
-async function fixture(bridgeWaitMs = 30) {
+async function fixture(bridgeWaitMs = 30, onNote?: (session: string, text: string) => unknown) {
   const root = await mkdtemp("/tmp/dsh-bridge-");
   roots.push(root);
   const socketDir = join(root, "private");
@@ -61,7 +61,7 @@ async function fixture(bridgeWaitMs = 30) {
   const logs: string[] = [];
   const server = new BridgeSocketServer({
     socketDir, pending, bridgeWaitMs,
-    onNote: (session, text) => notes.push([session, text]),
+    onNote: onNote ?? ((session, text) => notes.push([session, text])),
     log: (line) => logs.push(line),
   });
   servers.push(server);
@@ -101,6 +101,31 @@ function request(peer: Peer, id: string, tool: string, args: object) {
   peer.send({ id, tool, args });
   return peer.next();
 }
+
+test("Task7 notify_lead waits for a durable note before reporting success", async () => {
+  const gate = Promise.withResolvers<void>();
+  const entered = Promise.withResolvers<void>();
+  const notes: string[] = [];
+  const f = await fixture(30, async (_session, text) => { entered.resolve(); await gate.promise; notes.push(text); });
+  const peer = await authenticated(f);
+  let replied = false;
+  const reply = request(peer, "note", "notify_lead", { text: "durable control" }).then(value => { replied = true; return value; });
+  try {
+    await entered.promise;
+    await Bun.sleep(30);
+    expect(replied).toBe(false);
+    gate.resolve();
+    expect(await reply).toEqual({ id: "note", result: { ok: true } });
+    expect(notes).toEqual(["durable control"]);
+  } finally { gate.resolve(); await reply; }
+});
+
+test("Task7 rejected note returns a socket error and a valid note remains a decoded control", async () => {
+  const f = await fixture(30, async (_session, text) => { if (text === "reject") throw new Error("append failed"); });
+  const peer = await authenticated(f);
+  expect(await request(peer, "failed", "notify_lead", { text: "reject" })).toEqual({ id: "failed", error: "invalid arguments or request failed" });
+  expect(await request(peer, "control", "notify_lead", { text: "valid" })).toEqual({ id: "control", result: { ok: true } });
+});
 
 test("hello with an unknown token closes the connection without logging token values", async () => {
   const f = await fixture();

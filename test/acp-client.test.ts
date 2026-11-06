@@ -116,6 +116,59 @@ async function fixture(script: LifecycleScript = {}, overrides: { agent?: string
   return { ...f, cfg, journal, pending, logs, bridge, children, client, createClient, terminal, question, permission, api, release };
 }
 
+test("Task7 recordNote uses the session journal queue and errors for unknown or closing sessions", async () => {
+  const f = await fixture({ prompts: [{ question: "keep run open" }] }, { bridgeWaitMs: 100 });
+  expect(typeof f.client.recordNote).toBe("function");
+  await expect(f.client.recordNote("missing", "unknown note")).rejects.toThrow(/unknown/i);
+  const run = await f.client.start({ task: "ordered notes" });
+  const q = await f.question(run.session);
+  const gate = Promise.withResolvers<void>();
+  const entered = Promise.withResolvers<void>();
+  const original = f.journal.append.bind(f.journal);
+  f.journal.append = async (session, record) => { if (record.t === "note" && record.text === "first") { entered.resolve(); await gate.promise; } return original(session, record); };
+  const first = f.client.recordNote(run.session, "first");
+  try {
+    await entered.promise;
+    let answered = false;
+    const answer = f.client.answer({ session: run.session, requestId: q.requestId, text: "journal control" }).then(() => { answered = true; });
+    await Bun.sleep(30);
+    expect(answered).toBe(false);
+    gate.resolve();
+    await Promise.all([first, answer]);
+    await f.terminal(run);
+    const records = (await f.journal.read(run.session, 0)).records;
+    const noteIndex = records.findIndex(r => r.t === "note" && r.text === "first");
+    expect(records[noteIndex]).toMatchObject({ runId: run.runId, text: "first" });
+    expect(noteIndex).toBeLessThan(records.findIndex(r => r.t === "answer" && r.requestId === q.requestId));
+    await f.client.recordNote(run.session, "idle note");
+    expect((await f.journal.read(run.session, 0)).records.at(-1)).toMatchObject({ t: "note", text: "idle note" });
+    await f.client.close(run.session);
+    await expect(f.client.recordNote(run.session, "closed")).rejects.toThrow(/closing|unknown/i);
+  } finally { gate.resolve(); await first; }
+});
+
+test("Task7 recordNote failures cross the real socket boundary and remain strict follow errors", async () => {
+  const f = await fixture({ prompts: [{ question: "hold note session" }] }, { bridgeWaitMs: 100 });
+  expect(typeof f.client.recordNote).toBe("function");
+  const run = await f.client.start({ task: "notes socket" });
+  await f.question(run.session);
+  const bridge = new BridgeSocketServer({ socketDir: join(f.dir, "notes"), pending: f.pending, bridgeWaitMs: 100, onNote: (session, text) => f.client.recordNote(session, text), log: () => {} });
+  cleanups.push(() => bridge.close());
+  const token = bridge.allocateToken(); bridge.bindToken(token, run.session);
+  const peer = await socketPeer(await bridge.listen(), token);
+  peer.send({ id: "control", tool: "notify_lead", args: { text: "real journal control" } });
+  expect(await until(async () => peer.replies.find(r => r.id === "control"))).toEqual({ id: "control", result: { ok: true } });
+  expect((await f.journal.read(run.session, 0)).records).toContainEqual(expect.objectContaining({ t: "note", runId: run.runId, text: "real journal control" }));
+  const original = f.journal.append.bind(f.journal);
+  f.journal.append = async (session, record) => { if (record.t === "note") throw new Error("controlled journal failure"); return original(session, record); };
+  peer.send({ id: "failed", tool: "notify_lead", args: { text: "must not succeed" } });
+  expect(await until(async () => peer.replies.find(r => r.id === "failed"))).toMatchObject({ error: expect.any(String) });
+  await expect(f.client.follow({ ...run, after: 0, waitSeconds: 0 })).rejects.toThrow("controlled journal failure");
+  const stopping = f.client.shutdown();
+  await expect(stopping).rejects.toThrow("ACP shutdown failed");
+  f.client.shutdown = () => stopping.catch(() => {});
+});
+
 test("start returns submitted before the prompt settles; follow reaches final with the reply", async () => {
   const f = await fixture({ prompts: [{ delay: 150 }] });
   expect(f.children).toHaveLength(0);

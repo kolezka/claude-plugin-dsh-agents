@@ -9,7 +9,7 @@ type Options = {
   socketDir: string;
   pending: PendingQueue;
   bridgeWaitMs: number;
-  onNote: (session: string, text: string) => void;
+  onNote: (session: string, text: string) => unknown;
   log: (line: string) => void;
 };
 type Token = { session?: string; closing?: boolean };
@@ -198,7 +198,7 @@ export class BridgeSocketServer {
       const args = frame.args;
       if (frame.tool === "notify_lead") {
         if (!this.text(args.text)) throw new Error("invalid arguments");
-        this.opts.onNote(session, args.text);
+        await this.opts.onNote(session, args.text);
         this.reply(connection, { id: frame.id, result: { ok: true } });
         return;
       }
