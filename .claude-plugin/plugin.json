@@ -1,0 +1,7 @@
+{
+  "name": "dsh",
+  "description": "Hand tasks to dsh (DeepSeek Harness) sessions from Claude Code: MCP tools, the dsh:dsh bridge agent, /dsh:* commands and the dsh-delegation skill.",
+  "author": {
+    "name": "Mariusz Rakus"
+  }
+}

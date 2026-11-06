@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "dsh": {
+      "command": "${CLAUDE_PLUGIN_ROOT}/bin/dsh-agents",
+      "args": ["mcp"]
+    }
+  }
+}
