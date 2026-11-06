@@ -93,7 +93,7 @@ Verified on this machine on 2026-11-06, dsh 0.2.1-rc.5 (global Bun install,
 
 ```
 Claude Code lead
-  |  subagent_type: dsh-agents:dsh        (bridge agent, Claude model)
+  |  subagent_type: dsh-agents:dsh        (bridge agent, Claude haiku)
   v
 bridge agent  --MCP-->  dsh-agents MCP server (Bun, stdio, declared in .mcp.json)
                               |  ACP over stdio (one child process, lazily started)
@@ -241,8 +241,7 @@ src/mcp/server.ts               MCP tools
 src/acp/client.ts               ACP connection, session registry, event buffer
 src/bridge/socket.ts            Unix socket protocol, pending queue
 src/lead-bridge.ts              the MCP server dsh launches
-agents/dsh.md                   general bridge agent
-agents/dsh-worker.md            same, tuned for agent teams (one session for life)
+agents/dsh.md                   the bridge agent (subagent or agent-team teammate)
 skills/dsh-delegation/SKILL.md  tells sessions when and how to use the agents
 commands/dsh/ask.md             /dsh:ask [--session <id>] [--model <p/m>] <task>
 commands/dsh/sessions.md        /dsh:sessions [cwd]
@@ -254,9 +253,15 @@ docs/                           README, protocol notes
 test/                           bun test, with a fake ACP agent and a fake lead-bridge
 ```
 
-**Agent `dsh`** mirrors `synergy.md`: Claude model `sonnet` (my call: a cheap bridge,
-the thinking happens in dsh), tools limited to the dsh MCP tools plus `SendMessage` and
-`ToolSearch`. It writes one `dsh:` line per `follow` with news, answers `pending`
+**Agent `dsh`** mirrors `synergy.md`: Claude model `haiku` (user's call: the bridge only
+relays, the thinking happens in dsh; the plan verifies the alias resolves through the
+user's CLIProxyAPI gateway and falls back to `sonnet` if the catalog lacks Haiku), tools
+limited to the dsh MCP tools plus `SendMessage` and `ToolSearch`.
+
+Why a bridge agent at all: Claude Code's `subagent_type` always runs a Claude model with
+tools; a foreign process cannot be registered as an agent. The bridge is what makes a
+dsh session spawnable, parallel, and usable as an agent-team teammate. Direct calls
+(`/dsh:ask`, or the lead calling `start`/`follow` itself) remain for quick questions. It writes one `dsh:` line per `follow` with news, answers `pending`
 items from the brief when it can, otherwise asks the lead and relays the answer, never
 resends a task, and reports once:
 
@@ -273,9 +278,10 @@ anything destructive or outside the brief, ask the lead before answering. The ag
 never answers a question with a guess; if the brief does not contain the answer, it asks
 the lead.
 
-**Agent `dsh-worker`** is the teammate variant: keeps one dsh session for its whole life
-on the team, reads lead messages between `follow` calls, forwards them as follow-up
-prompts or `answer`s, and reports every result with `SendMessage`.
+The same file carries an "In an agent team" section, as `synergy.md` does: keep one dsh
+session for the whole time on the team, read lead messages between `follow` calls,
+forward them as follow-up prompts or `answer`s, and report every result with
+`SendMessage`. One agent type, no separate worker variant.
 
 **Skill `dsh-delegation`** says: these agents exist, dsh cannot see the Claude
 conversation so the brief must be self-contained, the session id lets you continue, and
@@ -318,13 +324,14 @@ file.
 
 Marked so the user can overrule them while reading:
 
-1. Bridge agents run on `sonnet`. The dsh model does the work.
+1. The bridge agent runs on `haiku` (user's choice), with `sonnet` as the fallback if the
+   gateway catalog lacks Haiku. The dsh model does the work.
 2. Default dsh model is dsh's own default for the profile, overridable by
    `DSH_AGENTS_MODEL`. The user's web sessions used `cliproxyapi/gpt-6.1-sol`; pinning
    that is a one-line config, not a plugin default.
 3. Permissions default to `ask` (surfaced to the bridge agent), not auto-allow.
-4. Two agents, not five. Synergy's specialists were pinned to specific gateway agents;
-   dsh has no equivalent that justifies more than general and teammate variants.
+4. One agent type, `dsh`. More types would only make sense to pin different dsh models
+   per agent; the `model` parameter in the brief covers that.
 5. The web patch overlay is on by default when the file exists.
 6. The MCP server is one process per Claude Code session, one dsh child per server.
    Several Claude sessions therefore run several dsh children; dsh persistence handles
