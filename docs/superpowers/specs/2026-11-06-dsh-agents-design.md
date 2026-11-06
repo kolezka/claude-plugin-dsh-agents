@@ -1,6 +1,6 @@
 # dsh-agents: dsh sessions as Claude Code agents
 
-Date: 2026-11-06. Status: draft for approval.
+Date: 2026-11-06. Status: draft for approval (builder check done, two findings folded in).
 
 ## Intent
 
@@ -135,8 +135,8 @@ appear as `mcp__plugin_dsh-agents_dsh__<tool>`.
 | `ask` | same as `start` plus `timeoutSeconds?` (default 600, max 3600) | the final reply, with `session` and `runId`; blocks |
 | `cancel` | `session` | `{ ok }`; stops the in-flight prompt |
 | `sessions` | `cwd?`, `limit?` | persisted sessions newest first, with `active` flag |
-| `history` | `session`, `limit?` | user and assistant text of one session |
-| `models` | none | the provider/model choices dsh advertises, with the current default |
+| `history` | `session`, `limit?` | user and assistant text of one session, from the plugin's own record (see below) |
+| `models` | `cwd?` | the provider/model choices dsh advertises, with the current default (see below) |
 | `close` | `session` | `{ ok }`; closes the live session, keeps it resumable |
 
 Semantics:
@@ -163,6 +163,21 @@ Semantics:
 - `cancel` calls `session/cancel`. Pending items of that session are resolved as
   rejected or cancelled so dsh's tools can finish.
 - Session ids are dsh's ACP session ids, used verbatim.
+- `history` reads the plugin's own durable record, not dsh's store. ACP has no history
+  call and `session/resume` does not replay past updates, while dsh persists sessions as
+  versioned, zstd-compressed JSONL (`session.v4.jsonl.zstd`) behind a lock. So the MCP
+  server appends every user prompt, lead answer and committed assistant text it sees to
+  `~/.dsh/state/dsh-agents/history/<session>.jsonl` (0600) and `history` returns that,
+  labelled `source: dsh-agents record`. Turns a session had outside this plugin (for
+  example in the web UI) are not included, and the result says so. Reading dsh's own
+  transcripts is a possible later addition, not part of this design. (My call after the
+  builder check.)
+- `models` needs a session, because dsh advertises model choices only in the
+  `session/new`, `session/resume` and `set_config_option` responses, not in `initialize`.
+  `models` returns the options of a live session for `cwd` if one exists; otherwise it
+  creates a session in `cwd` and keeps it as the pending session for that cwd, which the
+  next `start` without `session` reuses. No throwaway sessions are created. (My call
+  after the builder check.)
 
 ### Permissions and questions
 
@@ -290,10 +305,11 @@ when to use `/dsh:ask` instead.
 **`/dsh:setup`** runs `bun install` in the plugin dir (after a marketplace install) and
 then `bin/dsh-agents doctor`: finds `dsh`, prints its version, checks the profile
 exists (creating it with `dsh --profile acp --help` if not, which is what dsh itself does),
-dumps the composed config with the overlays and lists the MCP rows and providers it
-found, and reports the model that will be used by default. It also runs one ACP
-`initialize` round trip and reports the advertised models. It does not modify any dsh
-file.
+dumps the composed config with the overlays (`--dump-config`) and lists the MCP rows,
+the provider/model rows and the acp profile's default route it found there, and runs
+one ACP `initialize` round trip to prove the child starts and speaks ACP. It creates no
+session and does not modify any dsh file; the live model catalog is what `models`
+reports once a session exists.
 
 ### Testing
 
@@ -333,7 +349,11 @@ Marked so the user can overrule them while reading:
 4. One agent type, `dsh`. More types would only make sense to pin different dsh models
    per agent; the `model` parameter in the brief covers that.
 5. The web patch overlay is on by default when the file exists.
-6. The MCP server is one process per Claude Code session, one dsh child per server.
+6. `history` is the plugin's own record of what it saw, labelled as such; `models` reuses
+   or creates the pending session for a cwd; `doctor` never creates a session. Both
+   came out of the builder check (ACP has no history call and advertises models only per
+   session).
+7. The MCP server is one process per Claude Code session, one dsh child per server.
    Several Claude sessions therefore run several dsh children; dsh persistence handles
    the shared session store (its own contract says other frontends sharing the store
    are untouched).
