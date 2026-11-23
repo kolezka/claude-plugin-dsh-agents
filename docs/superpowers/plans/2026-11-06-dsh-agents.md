@@ -286,7 +286,7 @@ git commit -m "feat: lead-bridge socket server with token binding and pending qu
 
 **Interfaces:**
 - Consumes: frame types from Task 3.
-- Produces: `bun run src/cli.ts lead-bridge --socket <path> --token <token>` starts an MCP stdio server (`McpServer` + `StdioServerTransport` from `@modelcontextprotocol/sdk`) named `lead` with tools:
+- Produces: `bun run src/cli.ts lead-bridge --socket <path> --token <token>` starts an MCP stdio server (`McpServer` + `StdioServerTransport` from `@modelcontextprotocol/sdk`) named `dsh_agents_lead` with tools (no resources, no prompts, no `execution.taskSupport`; see spec v2.1 changes 1 and 3):
   - `ask_lead` `{ question: string, choices?: string[] }` → text content with the JSON reply from the socket.
   - `wait_lead` `{ questionId: string }` → same.
   - `notify_lead` `{ text: string }` → `{ ok: true }`.
@@ -409,7 +409,7 @@ test("read of an unknown session returns no records and next 0", ...);
 
   Behaviour pinned by the spec, in `client.ts`:
   - Lazy child start; `ClientApp` with `onNotification("session/update", …)` appending `update` records (serialized per session) and `onRequest("session/request_permission", …)` which joins the last `tool_call` update with the same `toolCallId` (else `context: "missing"`), adds a pending permission (or auto-answers in `allow` mode by `kind`), and resolves when `PendingQueue.waitFor` delivers.
-  - `start`: per-session mutex; token allocate → `session/new` or `session/resume` (cwd from `session/list`) with `mcpServers: [{ name: "lead", command: <abs bun>, args: [<abs cli.ts>, "lead-bridge", "--socket", path, "--token", token], env: [] }]` → bind token → if `model`/`reasoningEffort` given, `session/set_config_option` and verify `currentValue` → journal `submitted` → `agent.request("session/prompt", …)` not awaited; its settlement appends `settled`.
+  - `start`: per-session mutex; token allocate → `session/new` or `session/resume` (cwd from `session/list`) with `mcpServers: [{ name: "dsh_agents_lead", command: <abs bun>, args: [<abs cli.ts>, "lead-bridge", "--socket", path, "--token", token], env: [] }]` → bind token → if `model`/`reasoningEffort` given, `session/set_config_option` and verify `currentValue` → journal `submitted` → `agent.request("session/prompt", …)` not awaited; its settlement appends `settled`.
   - `follow` polls the journal with `pending.onChange` and a journal change signal, waking at most every 250 ms, until news or `waitSeconds`.
   - Idle timers and the shutdown order from Global Constraints.
 
@@ -493,7 +493,7 @@ test("start error PromptInFlight maps to an MCP error naming the open runId", ..
 - Modify: `src/cli.ts`
 
 **Interfaces:**
-- Produces: `export async function doctor(cfg: Config, run: (cmd: string[]) => Promise<{ code: number; stdout: string; stderr: string }>, acpInitialize: () => Promise<{ ok: boolean; error?: string }>): Promise<{ report: string; ok: boolean }>`. Report lines: dsh path and version, profile presence (creates it via `dsh --profile <p> --help` when missing), overlays, MCP rows found (`id` and `serverName`), provider/model rows, the acp default route, filtered warnings, ACP `initialize` result, effective config values.
+- Produces: `export async function doctor(cfg: Config, run: (cmd: string[]) => Promise<{ code: number; stdout: string; stderr: string }>, acpInitialize: () => Promise<{ ok: boolean; error?: string }>): Promise<{ report: string; ok: boolean }>`. Report lines: dsh path and version, profile presence (creates it via `dsh --profile <p> --help` when missing), overlays, MCP rows found (`id` and `serverName`), provider/model rows, the acp default route, filtered warnings, ACP `initialize` result, effective config values. Added in spec v2.1: the effective default permission preset with its sandbox and approval values plus `DSH_PERMISSION_MODE` (warn on `danger-full-access` or policy `never`); every enabled `serverName` with its `toolCallTimeoutMs` (fail on `dsh_agents_lead`, warn on duplicate enabled names); the dsh version against `TESTED_DSH_VERSION = "0.2.1-rc.5"` exported from `src/config.ts` (warn on mismatch).
 
 - [ ] **Step 1: Write the tests**
 
@@ -502,6 +502,9 @@ test("doctor lists the six mcp rows and the providers from the fixture dump", ..
 test("doctor filters the three expected not-found warnings and reports any other warning", ...);
 test("doctor reports a missing dsh binary as a failure with the install hint", ...);
 test("doctor creates the profile dir with --help when missing and says so", ...);
+test("doctor warns when the default preset is danger-full-access or the approval policy is never", ...);
+test("doctor fails when an enabled serverName equals dsh_agents_lead and warns on duplicate enabled names", ...);
+test("doctor warns when the dsh version differs from TESTED_DSH_VERSION", ...);
 ```
 
 - [ ] **Step 2: Run to verify failure**, **Step 3: Implement**, wire `doctor`, `mcp`, `lead-bridge` in `src/cli.ts`, **Step 4: Run `bun test` and `bun check`**, **Step 5: Commit** `feat: doctor subcommand that checks dsh, profile, overlays and ACP`.
@@ -516,7 +519,7 @@ test("doctor creates the profile dir with --help when missing and says so", ...)
 - Test: `test/plugin-files.test.ts`
 
 **Interfaces:**
-- Produces the Claude-facing surface. `agents/dsh.md` frontmatter: `name: dsh`, `model: haiku`, `color: cyan`, `tools:` the nine `mcp__plugin_dsh_dsh__*` names plus `SendMessage`, `ToolSearch`; body follows the spec's agent loop, report format and "In an agent team" section, modelled on `synergy.md`. Commands use `disable-model-invocation: true`; `setup` has `allowed-tools: Bash(${CLAUDE_PLUGIN_ROOT}/bin/dsh-agents install-deps)` and `Bash(${CLAUDE_PLUGIN_ROOT}/bin/dsh-agents doctor)`; add the `install-deps` branch to `bin/dsh-agents` (`bun install --frozen-lockfile --production`).
+- Produces the Claude-facing surface. `agents/dsh.md` frontmatter: `name: dsh`, `model: haiku`, `color: cyan`, `tools:` the nine `mcp__plugin_dsh_dsh__*` names plus `SendMessage`, `ToolSearch`; body follows the spec's agent loop, report format and "In an agent team" section, modelled on `synergy.md`. Agent and skill both say the lead approves only what dsh asks about, not every dsh action (spec v2.1 change 4). Commands use `disable-model-invocation: true`; `setup` has `allowed-tools: Bash(${CLAUDE_PLUGIN_ROOT}/bin/dsh-agents install-deps)` and `Bash(${CLAUDE_PLUGIN_ROOT}/bin/dsh-agents doctor)`; add the `install-deps` branch to `bin/dsh-agents` (`bun install --frozen-lockfile --production`).
 
 - [ ] **Step 1: Write the content tests**
 

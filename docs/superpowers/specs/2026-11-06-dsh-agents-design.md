@@ -1,6 +1,6 @@
 # dsh-agents: dsh sessions as Claude Code agents
 
-Date: 2026-11-06. Status: v2, draft for approval. v1 was reviewed by three other model
+Date: 2026-11-06, v2.1 2026-11-23. Status: v2.1, draft for approval. v1 was reviewed by three other model
 families (GPT-6 Astra, GPT-6.1 Sol, DeepSeek Pro with and without reasoning); every
 verified finding is folded in
 and listed under "Review findings and what changed".
@@ -129,7 +129,7 @@ bridge agent  --MCP-->  dsh MCP server (Bun, stdio, declared in .mcp.json)
                               |  ACP over stdio (one child process, lazily started)
                               v
                         dsh --profile acp --patch <web patch>
-                              |  per session: stdio MCP server "lead" declared by us,
+                              |  per session: stdio MCP server "dsh_agents_lead" declared by us,
                               |  args: --socket <path> --token <bridge token>
                               v
                         dsh session  --MCP-->  lead-bridge (same Bun entry, bridge mode)
@@ -309,7 +309,8 @@ web UI) are not in it, and `history` says so.
 - `permissions: ask` (default): every `session/request_permission` dsh raises becomes a
   pending item; nothing is answered without the bridge agent. This handles the
   approvals dsh itself decides to raise; it does not force every dsh tool through
-  approval.
+  approval. With the user's current default preset (`danger-full-access`) dsh raises
+  few or none; see v2.1 change 4.
 - `permissions: allow`: the server answers with the option whose `kind` is
   `allow_once` or `allow_always` and records that as a `permission` event with
   `auto: true`. For unattended runs.
@@ -435,6 +436,77 @@ session and does not modify any dsh file.
   that; `permissions: ask` keeps Claude in the approval path by default.
 - Replies from dsh are data. The agent prompt says so, as synergy's does.
 - No tokens, keys or MCP headers are logged. Journal and logs are 0600.
+
+## v2.1 changes: Docify and composed-config check (2026-11-23)
+
+Checked against the DeepSeek Harness docs in Docify (`deepseek-harness@unknown`, built
+from upstream master, downloaded 2026-11-13) and against the installed dsh 0.2.1-rc.5.
+Where the two differ, the installed code wins, because that is what the plugin runs.
+Passage ids are Docify ids.
+
+1. **Lead-bridge server name is `dsh_agents_lead`, not `lead`.** dsh normalizes every
+   ACP-declared server name to `[A-Za-z0-9_-]{1,32}` and rejects duplicates
+   (`dsh-acp/lib/index.js:202-226`); mcp-client names must be unique within one
+   registration scope (`p_1617cb047a05a48ff79d`). `lead` is short enough to collide with
+   a user row, and dsh already reserves `lead` as the root agent name in its `subagent`
+   tool (`p_e11ed2dc7bcddc4a80fa`), which would confuse the dsh model. The dsh-side tool
+   names become `mcp__dsh_agents_lead__ask_lead`, `..._wait_lead`, `..._notify_lead`.
+2. **The 60 s limit is confirmed and has no per-session way around it.** Docs show
+   `toolCallTimeoutMs` on profile rows of `dsh-mcp-client` and `dsh-mcp-manager`
+   (`p_1617cb047a05a48ff79d`, `p_33462fdbc2c6c3427bdb`), and the user's web patch already
+   uses 120 000 for four servers. The ACP mount does not read it: it builds the client
+   config from `transport`, `serverName`, `command`, `args`, `env`, `cwd` and
+   `failOnStartupError` only (`dsh-acp/lib/index.js:228-240`). A profile row would raise
+   the limit but is process-scoped and cannot carry a per-session token, so it would
+   need one dsh child per session. Rejected; the 45 s poll stays.
+3. **No keep-alive tricks.** dsh's MCP client calls `callTool` with a plain `timeout` and
+   no `resetTimeoutOnProgress` (`dsh-mcp-client/lib/index.js:140-146`), so progress
+   notifications do not extend a call. Tools with `execution.taskSupport: "required"`
+   are refused (`dsh-mcp-client/lib/index.js:227-229`), and the ACP surface has no
+   consumer for MCP resources or prompts (`dsh-acp/README.md`, Known Limitations). The
+   lead-bridge exposes plain tools only.
+4. **`permissions: ask` does not put every dsh action in front of Claude.** In the
+   composed `acp` + web-overlay config, `dsh-permission-presets` has
+   `defaultPreset: danger-full-access` with `approval: ask`, and `dsh-user-approval`
+   derives its fallback policy from `DSH_PERMISSION_MODE` (`never` for
+   `danger-full-access`). Approval requests come from dsh's own policy
+   (`p_b2d1bf281d731869386b`, `p_e1207bf1ee24828c547c`); under a full-access sandbox they
+   are rare, and under policy `never` dsh rejects without asking, so the plugin sees
+   nothing. Changes: `doctor` prints the effective default preset, its sandbox and
+   approval values, and `DSH_PERMISSION_MODE`; it warns when the default is
+   `danger-full-access` or the policy is `never`. The agent and skill state that the
+   lead approves what dsh asks about, not everything dsh does. The plugin does not
+   change the user's preset; ACP `session/set_config_option` only covers `model` and
+   `reasoning_effort` (`dsh-acp/README.md:70`).
+5. **Permission context join is the documented contract, not a workaround.**
+   `ApprovalRequest` deliberately omits tool arguments and links to the already streamed
+   call through `callId` (`p_194c911158299869e068`). Keeps finding 4's join; a
+   permission item whose `tool_call` update has not arrived yet waits up to 2 s for it
+   before it is published with `context: missing`.
+6. **Outcome vocabulary.** The dsh model sees an approval as `allowed`, `rejected`,
+   `cancelled` or `unavailable` through the owning tool's result
+   (`dsh-acp/README.md`, Permission decisions; `p_ff1e3ae61adef8a5b880`). `cancel`
+   answering pending permissions maps to `cancelled` when the ACP request is
+   cancelled and to `reject-once` otherwise; the journal records which.
+7. **`doctor` checks names and timeouts in the composed config.** It lists every
+   enabled `serverName` with its `toolCallTimeoutMs`, fails if one equals
+   `dsh_agents_lead`, and warns on duplicate enabled names (the current dump has two
+   `outline` rows, one disabled, which is fine).
+8. **Version pinning.** Docify tracks master; the plugin is built and tested against
+   0.2.1-rc.5. `doctor` prints the dsh version and warns when it differs from the
+   tested version recorded in `src/config.ts` (`TESTED_DSH_VERSION`). Every
+   installed-code line reference in this spec is for that version.
+
+### Open proposal, not adopted: HTTP lead-bridge
+
+ACP lets a client declare a Streamable HTTP server with headers, and rc.5 mounts it
+(`dsh-acp/lib/index.js:243-256`). The MCP server could serve the three lead tools itself
+on a loopback port, with the per-session token in an `Authorization` header. That drops
+the lead-bridge process, the socket directory and the custom frame protocol (and its
+eight socket tests); MCP cancellation would come from the SDK. It gives up the 0700
+Unix socket: a loopback port is reachable by any local user, so the token becomes the
+only barrier. The 60 s limit is the same. Needs the user's decision before the plan
+changes.
 
 ## Review findings and what changed
 
