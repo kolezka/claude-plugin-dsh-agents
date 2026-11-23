@@ -8,4 +8,8 @@ else
   printf '%s\n' 'dsh-agents: bun not found' >&2
   exit 127
 fi
+if [ "$1" = install-deps ]; then
+  cd "$root" || exit 1
+  exec "$bun" install --frozen-lockfile --production
+fi
 exec "$bun" run "$root/src/cli.ts" "$@"
