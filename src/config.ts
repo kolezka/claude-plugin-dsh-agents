@@ -16,6 +16,11 @@ export interface Config {
   socketDir: string;
 }
 
+/** dsh release this plugin is built and tested against; doctor warns on any other. */
+export const TESTED_DSH_VERSION = "0.2.1-rc.5";
+/** Name of the per-session lead-bridge MCP server. dsh reserves `lead` as its root agent name and rejects duplicate server names, so it is namespaced. */
+export const LEAD_SERVER_NAME = "dsh_agents_lead";
+
 export class ConfigError extends Error {}
 
 export function loadConfig(

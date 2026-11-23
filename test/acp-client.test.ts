@@ -289,6 +289,7 @@ test("resume after a client restart declares a new token and invalidates old pen
   expect(declarations).toHaveLength(2); expect(declarations[0].args.at(-1)).not.toBe(declarations[1].args.at(-1));
   expect(declarations[1].command).toBe(process.execPath); expect(declarations[1].args[0]).toBe(resolve(import.meta.dir, "../src/cli.ts"));
   expect(declarations[1].env).toEqual([]);
+  expect(declarations.map(d => d.name)).toEqual(["dsh_agents_lead", "dsh_agents_lead"]);
 });
 
 test("start with a cwd different from the persisted one throws CwdMismatch with the agent's text", async () => {

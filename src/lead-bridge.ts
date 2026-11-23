@@ -1,3 +1,4 @@
+import { LEAD_SERVER_NAME } from "./config";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
@@ -24,7 +25,7 @@ export async function runLeadBridge(args: string[]): Promise<number> {
   }
 
   const bridge = new BridgeClient();
-  const server = new McpServer({ name: "lead", version: "0.1.0" });
+  const server = new McpServer({ name: LEAD_SERVER_NAME, version: "0.1.0" });
   const transport = new StdioServerTransport();
   const text = z.string().refine((value) => value.trim().length > 0, "must not be blank");
   const forward = async (tool: RequestFrame["tool"], input: Record<string, unknown>, signal: AbortSignal) => {

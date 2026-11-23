@@ -1,6 +1,6 @@
 import { ClientApp, type ClientConnection, type SessionConfigOption, type SessionInfo, type RequestPermissionRequest, type RequestPermissionResponse, type SessionUpdate, type McpServer } from "@agentclientprotocol/sdk";
 import { resolve } from "node:path";
-import type { Config } from "../config";
+import { LEAD_SERVER_NAME, type Config } from "../config";
 import { Journal, type JournalRecord } from "../journal";
 import { PendingQueue, type PendingItem, type Answer } from "../bridge/pending";
 import type { BridgeSocketServer } from "../bridge/socket";
@@ -252,7 +252,7 @@ export class DshAcpClient {
         const socket = await this.deps.bridge.listen();
         this.assertOpen();
         const token = this.deps.bridge.allocateToken();
-        const mcpServers: McpServer[] = [{ name: "lead", command: process.execPath, args: [resolve(import.meta.dir, "../cli.ts"), "lead-bridge", "--socket", socket, "--token", token], env: [] }];
+        const mcpServers: McpServer[] = [{ name: LEAD_SERVER_NAME, command: process.execPath, args: [resolve(import.meta.dir, "../cli.ts"), "lead-bridge", "--socket", socket, "--token", token], env: [] }];
         let id: string;
         let options: SessionConfigOption[] | null;
         try {

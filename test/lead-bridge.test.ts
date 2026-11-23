@@ -59,7 +59,7 @@ async function launch(path: string, token: string) {
     expect(stderr).not.toContain(token);
   });
   await within(client.connect(transport), 3000);
-  expect(client.getServerVersion()?.name).toBe("lead");
+  expect(client.getServerVersion()?.name).toBe("dsh_agents_lead");
   return client;
 }
 
