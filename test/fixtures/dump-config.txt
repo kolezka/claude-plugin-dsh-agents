@@ -1,0 +1,178 @@
+[
+  {
+    "id": "llm-pi-ai",
+    "config": {
+      "providers": {
+        "openai-codex": {
+          "models": [
+            {
+              "id": "gpt-5.6-luna"
+            },
+            {
+              "id": "gpt-5.6-sol"
+            },
+            {
+              "id": "gpt-5.6-terra"
+            },
+            {
+              "id": "gpt-6-astra"
+            },
+            {
+              "id": "gpt-6-luna"
+            },
+            {
+              "id": "gpt-6-sol"
+            },
+            {
+              "id": "gpt-6.1-sol"
+            }
+          ],
+          "baseURL": "<URL>",
+          "apiKeyEnv": "<REDACTED>"
+        },
+        "litellm": {
+          "models": [
+            {
+              "id": "qwen3.5:9b-q4_K_M"
+            },
+            {
+              "id": "gemma3:12b"
+            },
+            {
+              "id": "qwen3:4b"
+            },
+            {
+              "id": "defiant-fable-9b:q8_0"
+            },
+            {
+              "id": "bge-m3"
+            },
+            {
+              "id": "defiant-fable-9b-mtp"
+            },
+            {
+              "id": "bge-small-en"
+            },
+            {
+              "id": "bge-reranker-v2-m3"
+            }
+          ],
+          "baseURL": "<URL>",
+          "apiKeyEnv": "<REDACTED>"
+        },
+        "cliproxyapi": {
+          "models": [
+            {
+              "id": "claude-fable-5"
+            },
+            {
+              "id": "claude-fable-5-1"
+            },
+            {
+              "id": "claude-haiku-5-5"
+            },
+            {
+              "id": "claude-opus-5"
+            },
+            {
+              "id": "claude-opus-5-5"
+            },
+            {
+              "id": "claude-sonnet-5"
+            },
+            {
+              "id": "claude-sonnet-5-5"
+            },
+            {
+              "id": "gpt-6-sol"
+            },
+            {
+              "id": "gpt-image-2.5-flare"
+            },
+            {
+              "id": "defiant-fable-9b:q8_0"
+            },
+            {
+              "id": "gpt-image-2.5-sunburst"
+            },
+            {
+              "id": "gpt-6.1-terra"
+            },
+            {
+              "id": "defiant-fable-9b-mtp"
+            },
+            {
+              "id": "gpt-6-astra"
+            },
+            {
+              "id": "gpt-6-luna"
+            },
+            {
+              "id": "gpt-image-2.5"
+            },
+            {
+              "id": "gpt-6.1-sol"
+            }
+          ],
+          "baseURL": "<URL>",
+          "apiKeyEnv": "<REDACTED>"
+        }
+      }
+    }
+  },
+  {
+    "id": "acp",
+    "config": {
+      "provider": "deepseek-official",
+      "model": "deepseek-v4-flash"
+    }
+  },
+  {
+    "id": "mcp-slack",
+    "config": {
+      "serverName": "slack",
+      "url": "<URL>",
+      "headers": "<HEADERS>"
+    }
+  },
+  {
+    "id": "mcp-slack2",
+    "config": {
+      "serverName": "slack2",
+      "url": "<URL>",
+      "headers": "<HEADERS>"
+    }
+  },
+  {
+    "id": "mcp-clickhouse",
+    "config": {
+      "serverName": "clickhouse",
+      "url": "<URL>",
+      "headers": "<HEADERS>"
+    }
+  },
+  {
+    "id": "mcp-vulcan",
+    "config": {
+      "serverName": "vulcan",
+      "url": "<URL>",
+      "headers": "<HEADERS>"
+    }
+  },
+  {
+    "id": "mcp-hindsight",
+    "config": {
+      "serverName": "hindsight",
+      "url": "<URL>",
+      "headers": "<HEADERS>"
+    }
+  },
+  {
+    "id": "mcp-outline",
+    "config": {
+      "serverName": "outline",
+      "url": "<URL>",
+      "headers": "<HEADERS>"
+    }
+  }
+]
