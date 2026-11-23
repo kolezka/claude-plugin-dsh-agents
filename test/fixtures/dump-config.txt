@@ -160,9 +160,9 @@
     }
   },
   {
-    "id": "mcp-hindsight-inkitt",
+    "id": "mcp-hindsight",
     "config": {
-      "serverName": "hindsight-inkitt",
+      "serverName": "hindsight",
       "url": "<URL>",
       "headers": "<HEADERS>"
     }
