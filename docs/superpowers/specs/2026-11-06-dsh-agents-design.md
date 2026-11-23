@@ -480,9 +480,10 @@ Passage ids are Docify ids.
    `reasoning_effort` (`dsh-acp/README.md:70`).
 5. **Permission context join is the documented contract, not a workaround.**
    `ApprovalRequest` deliberately omits tool arguments and links to the already streamed
-   call through `callId` (`p_194c911158299869e068`). Keeps finding 4's join; a
-   permission item whose `tool_call` update has not arrived yet waits up to 2 s for it
-   before it is published with `context: missing`.
+   call through `callId` (`p_194c911158299869e068`). Keeps finding 4's join. No wait is
+   needed: dsh drains queued session updates before it sends `session/request_permission`
+   (`dsh-acp/lib/index.js:1158-1176`, `record.drainUpdates()`), so the `tool_call` update
+   is already received. `context: missing` stays for calls without a streamed update.
 6. **Outcome vocabulary.** The dsh model sees an approval as `allowed`, `rejected`,
    `cancelled` or `unavailable` through the owning tool's result
    (`dsh-acp/README.md`, Permission decisions; `p_ff1e3ae61adef8a5b880`). `cancel`
